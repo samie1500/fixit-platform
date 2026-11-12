@@ -129,18 +129,23 @@ async function sendGoogleScriptEmail({ to, subject, html }) {
   try {
     const res = await fetch(webhookUrl.trim(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ to, subject, html }),
       redirect: 'follow'
     });
     const text = await res.text();
+    console.log('[GOOGLE WEBHOOK RESPONSE]', res.status, text.slice(0, 150));
     let data = {};
     try { data = JSON.parse(text); } catch (e) {}
-    if (res.ok && (data.sent || text.includes('sent'))) {
+
+    if (res.ok || res.status === 302) {
+      if (text.includes('"sent":false') || text.includes('ScriptError') || text.includes('Exception') || text.includes('Authorization is required')) {
+        return { sent: false, error: data?.error || text.slice(0, 150) };
+      }
       console.log(`[EMAIL DISPATCH] Delivered natively via Google Apps Script HTTPS Webhook`);
       return { sent: true };
     }
-    return { sent: false, error: data?.error || text.slice(0, 100) };
+    return { sent: false, error: data?.error || `HTTP ${res.status}: ${text.slice(0, 100)}` };
   } catch (e) {
     return { sent: false, error: e.message };
   }
@@ -153,6 +158,7 @@ async function sendBrevoEmail({ to, subject, html }) {
 
   try {
     const senderEmail = process.env.BREVO_SENDER || process.env.SMTP_USER || 'devkate.avdhut2003@gmail.com';
+    const senderName = process.env.BREVO_SENDER_NAME || 'FixitOfficials';
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -160,7 +166,7 @@ async function sendBrevoEmail({ to, subject, html }) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        sender: { name: 'Fixit Platform', email: senderEmail.trim() },
+        sender: { name: senderName, email: senderEmail.trim() },
         to: [{ email: to }],
         subject,
         htmlContent: html
@@ -330,36 +336,37 @@ async function sendOtpEmail(toEmail, otp, type = 'register') {
   console.log(`Expires in: 10 minutes`);
   console.log(`==================================================\n`);
 
-  let lastError = null;
+  let errors = [];
 
   // 1. Try Google Apps Script HTTPS Webhook (Port 443 - uses native GmailApp from your Gmail account, zero domain/IP blocks)
   if (process.env.GMAIL_WEBHOOK_URL) {
     const googleResult = await sendGoogleScriptEmail({ to: toEmail, subject, html });
     if (googleResult.sent) return { ...googleResult, otp };
-    lastError = `Google Webhook: ${googleResult.error}`;
+    errors.push(`Google Webhook: ${googleResult.error}`);
   }
 
   // 2. Try Brevo HTTPS API (Port 443)
   if (process.env.BREVO_API_KEY) {
     const brevoResult = await sendBrevoEmail({ to: toEmail, subject, html });
     if (brevoResult.sent) return { ...brevoResult, otp };
-    lastError = `Brevo: ${brevoResult.error}`;
+    errors.push(`Brevo: ${brevoResult.error}`);
   }
 
-  // 2. Try Resend HTTPS API (Port 443)
+  // 3. Try Resend HTTPS API (Port 443)
   if (process.env.RESEND_API_KEY) {
     const httpsResult = await sendHttpsApiEmail({ to: toEmail, subject, html });
     if (httpsResult.sent) return { ...httpsResult, otp };
-    lastError = `Resend: ${httpsResult.error}`;
+    errors.push(`Resend: ${httpsResult.error}`);
   }
 
-  // 3. Try SMTP TLS (Port 465 - works on localhost:3000)
+  // 4. Try SMTP TLS (Port 465 - works on localhost:3000)
   const smtpResult = await sendSmtpEmail({ to: toEmail, subject, html });
   if (smtpResult.sent) return { ...smtpResult, otp };
+  errors.push(`SMTP: ${smtpResult.error}`);
 
   return {
     sent: false,
-    error: lastError || smtpResult.error || 'Outbound SMTP port blocked on host',
+    error: errors.join(' | ') || 'All email dispatch methods failed',
     otp
   };
 }
