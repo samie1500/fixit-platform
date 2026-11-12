@@ -57,8 +57,12 @@
           <label class="block font-bold text-slate-300 mb-1.5">Admin Password</label>
           <div class="relative">
             <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-500"></i>
-            <input type="password" id="admin-login-password" required placeholder="Enter password" class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none">
+            <input type="password" id="admin-login-password" required value="password123" placeholder="Enter password" class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none">
           </div>
+          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-key text-amber-400 text-[10px]"></i>
+            <span>Default credentials: <strong class="text-rose-400 font-mono">admin@fixit.com</strong> / <strong class="text-rose-400 font-mono">password123</strong></span>
+          </p>
         </div>
 
         <div id="admin-login-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold"></div>
@@ -306,12 +310,16 @@
       setTimeout(() => el.remove(), 4000);
     }
 
-    // Determine API Base URL (supports both Node server on :3000 and VS Code Live Server on :5500)
+    // Determine API Base URL (supports local Node server :3000, VS Code Live Server :5500, and Render/cloud hosts on :80/:443)
     function getApiBase() {
       const port = window.location.port;
-      if (port === '3000') return '/api';
-      const host = window.location.hostname || 'localhost';
-      return `http://${host}:3000/api`;
+      const host = window.location.hostname || '';
+      // On standard cloud deployments (Render, Railway, Heroku) port is empty or 80/443; local Node is 3000
+      if (!port || port === '3000' || port === '80' || port === '443') {
+        return '/api';
+      }
+      const protocol = window.location.protocol.startsWith('http') ? window.location.protocol : 'http:';
+      return `${protocol}//${host || 'localhost'}:3000/api`;
     }
 
     // Helper: Admin API fetch
