@@ -35,12 +35,26 @@ function escapeHtml(str) {
 
 // Determine API base URL
 function getApiBase() {
+  const hostname = window.location.hostname || '';
   const port = window.location.port;
-  // If running directly on the node server (port 3000) or hosted live in the cloud (standard port 80/443 or empty)
+
+  // 1. Remote API override (e.g. if hosting frontend on GitHub Pages and backend on Render)
+  if (window.FIXIT_API_URL) return window.FIXIT_API_URL;
+  const storedApi = localStorage.getItem('fixit_remote_api');
+  if (storedApi) return storedApi;
+
+  // 2. GitHub Pages (*.github.io) is a static host and cannot run Node.js backends.
+  // Return null to run the client-side MockDB engine so the site works smoothly without 405 errors!
+  if (hostname.endsWith('github.io')) {
+    return null;
+  }
+
+  // 3. Local Node.js server (port 3000) or full-stack cloud host (Render, Railway, Fly.io on standard 80/443)
   if (!port || port === '3000' || port === '80' || port === '443') {
     return '/api';
   }
-  // If running via Live Server (e.g. port 5500) or other static dev server, attempt to connect to backend on 3000
+
+  // 4. If running via VS Code Live Server (e.g. port 5500), connect to local backend on port 3000
   if (window.location.protocol.startsWith('http')) {
     const host = window.location.hostname || 'localhost';
     return `${window.location.protocol}//${host}:3000/api`;
@@ -153,34 +167,50 @@ async function api(endpoint, options = {}) {
 
       const text = await res.text();
       let data = {};
+      let isJson = true;
       try {
         data = text ? JSON.parse(text) : {};
       } catch (jsonErr) {
-        throw new Error(`Invalid JSON response: ${text.slice(0, 100)}`);
+        isJson = false;
       }
 
       if (!res.ok) {
-        state.backendConnected = true;
-        updateBackendStatusPill(true);
-        const errMsg = data.error || `HTTP ${res.status}`;
+        state.backendConnected = res.status !== 405 && res.status !== 404;
+        updateBackendStatusPill(state.backendConnected);
+        let errMsg = data.error;
+        if (!errMsg) {
+          if (res.status === 405) {
+            errMsg = 'HTTP 405 Method Not Allowed: This host is static-only (e.g. GitHub Pages) and cannot execute Node.js API requests.';
+          } else if (res.status === 502 || res.status === 503) {
+            errMsg = 'HTTP 502/503: Backend server is starting up or temporarily unavailable.';
+          } else {
+            errMsg = `HTTP ${res.status}: ${res.statusText || 'Request failed'}`;
+          }
+        }
         const error = new Error(errMsg);
         error.isApiError = true;
+        error.status = res.status;
         throw error;
+      }
+
+      if (!isJson && text) {
+        throw new Error(`Invalid response format from server: ${text.slice(0, 100)}`);
       }
 
       state.backendConnected = true;
       updateBackendStatusPill(true);
       return data;
     } catch (err) {
-      if (err.isApiError) {
+      // If error is an actual business logic API error from backend (e.g. invalid password, OTP expired), rethrow it:
+      if (err.isApiError && err.status !== 405 && err.status !== 404) {
         throw err;
       }
-      // If connected to Node backend (port 3000) or calling auth endpoints, NEVER fall back to MockDB!
-      // MockDB contains separate mock data and causes false "No account found" errors.
-      if (window.location.port === '3000' || endpoint.startsWith('/auth/')) {
+      // If connected to Node backend on port 3000, don't fall back to MockDB:
+      if (window.location.port === '3000') {
         state.backendConnected = true;
         throw new Error(err.name === 'AbortError' ? 'Request timed out while delivering email. Please try again.' : (err.message || 'Server request failed'));
       }
+      // If backend is unavailable or on a static host (404 / 405 / network error):
       console.warn(`Backend API unavailable at ${apiBase}${endpoint} (${err.message}). Using local engine fallback.`);
       state.backendConnected = false;
       updateBackendStatusPill(false);
