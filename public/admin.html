@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixit - Admin Console & Management Portal</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+  </style>
+</head>
+<body class="min-h-full flex flex-col antialiased">
+
+  <!-- ==================== SCREEN 1: ADMIN LOGIN SCREEN ==================== -->
+  <div id="admin-login-screen" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div class="max-w-md w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-rose-600 to-amber-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
+          <i class="fa-solid fa-shield-halved text-2xl"></i>
+        </div>
+        <h1 class="text-2xl font-black text-white tracking-tight">Fixit Admin Console</h1>
+        <p class="text-xs text-slate-400">Restricted Access • System Administrators Only</p>
+      </div>
+
+      <form id="admin-login-form" onsubmit="handleAdminLogin(event)" class="space-y-4 text-xs">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1.5">Admin Email Address</label>
+          <div class="relative">
+            <i class="fa-solid fa-envelope absolute left-3.5 top-3 text-slate-500"></i>
+            <input type="email" id="admin-login-email" required value="admin@fixit.com" class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1.5">Admin Password</label>
+          <div class="relative">
+            <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-500"></i>
+            <input type="password" id="admin-login-password" required placeholder="Enter password" class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none">
+          </div>
+        </div>
+
+        <div id="admin-login-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold"></div>
+
+        <button type="submit" id="btn-admin-login-submit" class="w-full py-3 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold rounded-xl transition shadow-lg shadow-rose-900/30 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Authenticate & Access Dashboard</span>
+        </button>
+      </form>
+
+      <div class="pt-4 border-t border-slate-800/80 text-center">
+        <a href="index.html" class="text-xs text-slate-500 hover:text-slate-300 transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Return to Fixit Main Platform</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SCREEN 2: ADMIN MANAGEMENT DASHBOARD ==================== -->
+  <div id="admin-portal-screen" class="hidden min-h-screen flex flex-col bg-slate-950">
+    <!-- Admin Top Navbar -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-rose-600 flex items-center justify-center text-white font-bold shadow-md shadow-rose-500/20">
+          <i class="fa-solid fa-shield-halved text-base"></i>
+        </div>
+        <div>
+          <div class="font-black text-white text-base leading-none">Fixit Admin <span class="text-rose-500 text-xs uppercase px-1.5 py-0.5 rounded bg-rose-500/20 ml-1">Portal</span></div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Control Center & Database Management</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span id="admin-user-display" class="font-bold text-slate-200">Super Admin</span>
+        </div>
+        <a href="index.html" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700" title="Open Fixit Customer & Provider Platform">
+          <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+          <span class="hidden md:inline">View Site</span>
+        </a>
+        <button onclick="adminLogout()" class="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+      <!-- Metrics Summary Row -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-1">
+          <div class="text-slate-400 text-xs font-semibold flex items-center justify-between">
+            <span>Registered Users</span>
+            <i class="fa-solid fa-users text-indigo-400"></i>
+          </div>
+          <div id="stat-users-count" class="text-3xl font-black text-white font-mono">0</div>
+        </div>
+
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-1">
+          <div class="text-slate-400 text-xs font-semibold flex items-center justify-between">
+            <span>Verified Providers</span>
+            <i class="fa-solid fa-screwdriver-wrench text-emerald-400"></i>
+          </div>
+          <div id="stat-providers-count" class="text-3xl font-black text-white font-mono">0</div>
+        </div>
+
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-1">
+          <div class="text-slate-400 text-xs font-semibold flex items-center justify-between">
+            <span>Service Requests</span>
+            <i class="fa-solid fa-clipboard-list text-amber-400"></i>
+          </div>
+          <div id="stat-requests-count" class="text-3xl font-black text-white font-mono">0</div>
+        </div>
+
+        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-1">
+          <div class="text-slate-400 text-xs font-semibold flex items-center justify-between">
+            <span>Categories</span>
+            <i class="fa-solid fa-layer-group text-teal-400"></i>
+          </div>
+          <div id="stat-categories-count" class="text-3xl font-black text-white font-mono">8</div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs & Actions -->
+      <div class="bg-slate-900/90 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 pt-4 border-b border-slate-800 overflow-x-auto">
+          <div class="flex items-center gap-2">
+            <button onclick="switchAdminTab('users')" id="tab-btn-users" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-white border border-slate-700 transition flex items-center gap-2">
+              <i class="fa-solid fa-users"></i>
+              <span>Registered Users</span>
+            </button>
+            <button onclick="switchAdminTab('providers')" id="tab-btn-providers" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-2">
+              <i class="fa-solid fa-user-gear"></i>
+              <span>Providers</span>
+            </button>
+            <button onclick="switchAdminTab('requests')" id="tab-btn-requests" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-2">
+              <i class="fa-solid fa-clipboard-list"></i>
+              <span>Requests</span>
+            </button>
+            <button onclick="switchAdminTab('categories')" id="tab-btn-categories" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-2">
+              <i class="fa-solid fa-layer-group"></i>
+              <span>Categories</span>
+            </button>
+          </div>
+
+          <div class="py-2">
+            <button onclick="loadAdminData()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition text-xs flex items-center gap-1.5" title="Refresh Live Data">
+              <i class="fa-solid fa-rotate"></i>
+              <span class="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 1: USERS MANAGEMENT (Admin Only - View & Delete) -->
+        <div id="admin-panel-users" class="p-6 space-y-4">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <span>User Accounts</span>
+                <span class="text-xs text-slate-400 font-normal">All registered users in fixit.db</span>
+              </h2>
+            </div>
+            <div class="relative w-full sm:w-72">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+              <input type="text" id="users-search-input" oninput="filterUsersTable(this.value)" placeholder="Search by name, email, phone..." class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 text-xs focus:ring-1 focus:ring-rose-500 outline-none">
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+            <table class="w-full text-left text-xs divide-y divide-slate-800">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase font-semibold text-[10px] tracking-wider">
+                <tr>
+                  <th class="py-3 px-4">User ID</th>
+                  <th class="py-3 px-4">Full Name</th>
+                  <th class="py-3 px-4">Email Address</th>
+                  <th class="py-3 px-4">Role</th>
+                  <th class="py-3 px-4">Phone</th>
+                  <th class="py-3 px-4">Status</th>
+                  <th class="py-3 px-4 text-right">Admin Actions</th>
+                </tr>
+              </thead>
+              <tbody id="admin-users-tbody" class="divide-y divide-slate-800/80">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 2: PROVIDERS DIRECTORY -->
+        <div id="admin-panel-providers" class="hidden p-6 space-y-4">
+          <h2 class="text-base font-bold text-white">Registered Service Providers</h2>
+          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+            <table class="w-full text-left text-xs divide-y divide-slate-800">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase font-semibold text-[10px] tracking-wider">
+                <tr>
+                  <th class="py-3 px-4">Pro ID</th>
+                  <th class="py-3 px-4">User ID</th>
+                  <th class="py-3 px-4">Provider Name</th>
+                  <th class="py-3 px-4">Category</th>
+                  <th class="py-3 px-4">Rate (₹/hr)</th>
+                  <th class="py-3 px-4">Location</th>
+                  <th class="py-3 px-4">Status</th>
+                </tr>
+              </thead>
+              <tbody id="admin-providers-tbody" class="divide-y divide-slate-800/80">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 3: REQUESTS -->
+        <div id="admin-panel-requests" class="hidden p-6 space-y-4">
+          <h2 class="text-base font-bold text-white">All Service Requests</h2>
+          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+            <table class="w-full text-left text-xs divide-y divide-slate-800">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase font-semibold text-[10px] tracking-wider">
+                <tr>
+                  <th class="py-3 px-4">Ticket</th>
+                  <th class="py-3 px-4">Problem</th>
+                  <th class="py-3 px-4">Customer</th>
+                  <th class="py-3 px-4">Category</th>
+                  <th class="py-3 px-4">Status</th>
+                  <th class="py-3 px-4">Created</th>
+                </tr>
+              </thead>
+              <tbody id="admin-requests-tbody" class="divide-y divide-slate-800/80">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 4: CATEGORIES -->
+        <div id="admin-panel-categories" class="hidden p-6 space-y-4">
+          <h2 class="text-base font-bold text-white">System Service Categories</h2>
+          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+            <table class="w-full text-left text-xs divide-y divide-slate-800">
+              <thead class="bg-slate-800/60 text-slate-400 uppercase font-semibold text-[10px] tracking-wider">
+                <tr>
+                  <th class="py-3 px-4">ID</th>
+                  <th class="py-3 px-4">Category Name</th>
+                  <th class="py-3 px-4">Slug</th>
+                  <th class="py-3 px-4">Description</th>
+                </tr>
+              </thead>
+              <tbody id="admin-categories-tbody" class="divide-y divide-slate-800/80">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- Admin Footer -->
+    <footer class="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500 mt-auto">
+      Fixit Administrative Console • Authorized Personnel Only • Connected to fixit.db
+    </footer>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="admin-toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- ==================== ADMIN JAVASCRIPT CONTROLLER ==================== -->
+  <script>
+    let adminToken = localStorage.getItem('fixit_admin_token') || sessionStorage.getItem('fixit_admin_token') || null;
+    let allUsersCache = [];
+
+    // Helper: Toast alerts
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('admin-toast-container');
+      if (!container) return;
+      const el = document.createElement('div');
+      const bg = type === 'error' ? 'bg-rose-900/90 border-rose-500 text-rose-100' : (type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' : 'bg-slate-900 border-slate-700 text-white');
+      el.className = `p-3.5 rounded-2xl border ${bg} text-xs shadow-2xl flex items-center justify-between gap-3 pointer-events-auto animate-in fade-in`;
+      el.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>`;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }
+
+    // Determine API Base URL (supports both Node server on :3000 and VS Code Live Server on :5500)
+    function getApiBase() {
+      const port = window.location.port;
+      if (port === '3000') return '/api';
+      const host = window.location.hostname || 'localhost';
+      return `http://${host}:3000/api`;
+    }
+
+    // Helper: Admin API fetch
+    async function adminApi(endpoint, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+      if (adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+      const base = getApiBase();
+      try {
+        const res = await fetch(base + endpoint, { ...opts, headers });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Server request failed');
+        return data;
+      } catch (err) {
+        if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+          throw new Error('Cannot connect to Fixit backend server. Please ensure node server.js is running on port 3000.');
+        }
+        throw err;
+      }
+    }
+
+    // Initialize: Check if already authenticated as Admin
+    async function initAdmin() {
+      if (!adminToken) {
+        showLoginScreen();
+        return;
+      }
+
+      try {
+        const me = await adminApi('/auth/me');
+        if (me.user && me.user.role === 'admin') {
+          showPortalScreen(me.user);
+        } else {
+          adminLogout();
+        }
+      } catch (err) {
+        adminLogout();
+      }
+    }
+
+    function showLoginScreen() {
+      document.getElementById('admin-login-screen').classList.remove('hidden');
+      document.getElementById('admin-portal-screen').classList.add('hidden');
+    }
+
+    function showPortalScreen(user) {
+      document.getElementById('admin-login-screen').classList.add('hidden');
+      document.getElementById('admin-portal-screen').classList.remove('hidden');
+      document.getElementById('admin-user-display').textContent = user.name || 'Super Admin';
+      loadAdminData();
+    }
+
+    // Login Form Submit
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('admin-login-email').value.trim();
+      const password = document.getElementById('admin-login-password').value;
+      const errBox = document.getElementById('admin-login-error');
+      const submitBtn = document.getElementById('btn-admin-login-submit');
+
+      errBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Authenticating...';
+
+      try {
+        const res = await adminApi('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+
+        if (!res.user || res.user.role !== 'admin') {
+          throw new Error('Access denied. Administrator credentials required.');
+        }
+
+        adminToken = res.token;
+        localStorage.setItem('fixit_admin_token', res.token);
+        sessionStorage.setItem('fixit_admin_token', res.token);
+
+        showPortalScreen(res.user);
+        showToast('Admin authenticated successfully!', 'success');
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket mr-1"></i> Authenticate & Access Dashboard';
+      }
+    }
+
+    function adminLogout() {
+      adminToken = null;
+      localStorage.removeItem('fixit_admin_token');
+      sessionStorage.removeItem('fixit_admin_token');
+      showLoginScreen();
+      showToast('Signed out from Admin Console', 'info');
+    }
+
+    // Load Live Admin Data
+    async function loadAdminData() {
+      await Promise.allSettled([
+        loadUsers(),
+        loadProviders(),
+        loadRequests(),
+        loadCategories()
+      ]);
+    }
+
+    // Load Users
+    async function loadUsers() {
+      try {
+        const res = await adminApi('/admin/users');
+        allUsersCache = res.users || [];
+        document.getElementById('stat-users-count').textContent = allUsersCache.length;
+        renderUsersTable(allUsersCache);
+      } catch (err) {
+        showToast('Failed to load users: ' + err.message, 'error');
+      }
+    }
+
+    function renderUsersTable(users) {
+      const tbody = document.getElementById('admin-users-tbody');
+      if (!tbody) return;
+
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500">No users found in database</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(u => {
+        const isSuperAdmin = u.id === 1 || u.role === 'admin';
+        const roleBadge = u.role === 'admin'
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300">Admin</span>`
+          : (u.role === 'provider'
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">Provider</span>`
+            : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300">Customer</span>`);
+
+        const statusBadge = u.status === 'active'
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 border border-emerald-500/40 text-emerald-300">Active</span>`
+          : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950 border border-rose-500/40 text-rose-300">Suspended</span>`;
+
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-4 font-mono font-bold text-slate-400">#${u.id}</td>
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(u.name)}</td>
+            <td class="py-3 px-4 font-mono text-slate-300">${escapeHtml(u.email)}</td>
+            <td class="py-3 px-4">${roleBadge}</td>
+            <td class="py-3 px-4 text-slate-400">${escapeHtml(u.phone || '—')}</td>
+            <td class="py-3 px-4">${statusBadge}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap">
+              ${isSuperAdmin ? `
+                <span class="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded">Super Admin</span>
+              ` : `
+                <button onclick="toggleUserStatus(${u.id}, '${u.status === 'active' ? 'suspended' : 'active'}')" class="px-2 py-1 rounded-lg text-[10px] font-bold border transition ${u.status === 'active' ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}">
+                  ${u.status === 'active' ? 'Suspend' : 'Activate'}
+                </button>
+                <button onclick="deleteUser(${u.id}, '${escapeHtml(u.name)}')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition ml-1.5" title="Permanently Delete User">
+                  <i class="fa-solid fa-trash-can mr-1"></i>Delete
+                </button>
+              `}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterUsersTable(query) {
+      const q = query.toLowerCase().trim();
+      if (!q) {
+        renderUsersTable(allUsersCache);
+        return;
+      }
+      const filtered = allUsersCache.filter(u =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.phone && u.phone.includes(q)) ||
+        u.role.toLowerCase().includes(q)
+      );
+      renderUsersTable(filtered);
+    }
+
+    // Admin Delete User
+    async function deleteUser(userId, userName) {
+      if (userId === 1) {
+        showToast('Super Admin account cannot be deleted', 'error');
+        return;
+      }
+
+      if (!confirm(`ADMIN ACTION: Are you sure you want to permanently delete user "${userName}" (#${userId})?\n\nThis will remove their profile and all associated records from fixit.db.`)) {
+        return;
+      }
+
+      try {
+        const res = await adminApi(`/admin/users/${userId}`, { method: 'DELETE' });
+        showToast(res.message || `User #${userId} deleted successfully`, 'success');
+        loadUsers();
+      } catch (err) {
+        showToast('Failed to delete user: ' + err.message, 'error');
+      }
+    }
+
+    // Toggle User Suspend / Activate
+    async function toggleUserStatus(userId, status) {
+      try {
+        await adminApi(`/admin/users/${userId}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status })
+        });
+        showToast(`User status updated to ${status}`, 'success');
+        loadUsers();
+      } catch (err) {
+        showToast('Failed to update status: ' + err.message, 'error');
+      }
+    }
+
+    // Load Providers
+    async function loadProviders() {
+      try {
+        const res = await adminApi('/providers');
+        const providers = res.providers || [];
+        document.getElementById('stat-providers-count').textContent = providers.length;
+        const tbody = document.getElementById('admin-providers-tbody');
+        if (!tbody) return;
+
+        if (providers.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">No registered providers yet</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = providers.map(p => `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-4 font-mono font-bold text-slate-400">#${p.id}</td>
+            <td class="py-3 px-4 font-mono text-slate-500">#${p.user_id}</td>
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(p.name)}</td>
+            <td class="py-3 px-4 text-slate-300">${escapeHtml(p.category_name || 'General')}</td>
+            <td class="py-3 px-4 font-bold text-emerald-400">₹${p.hourly_rate}/hr</td>
+            <td class="py-3 px-4 text-slate-400">${escapeHtml(p.district || 'India')}</td>
+            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">Approved</span></td>
+          </tr>
+        `).join('');
+      } catch (err) {}
+    }
+
+    // Load Requests
+    async function loadRequests() {
+      try {
+        const res = await adminApi('/admin/stats');
+        const stats = res.stats || {};
+        document.getElementById('stat-requests-count').textContent = stats.totalRequests || 0;
+        const recent = res.recentRequests || [];
+        const tbody = document.getElementById('admin-requests-tbody');
+        if (!tbody) return;
+
+        if (recent.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-500">No repair requests recorded yet</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = recent.map(r => `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-4 font-mono font-bold text-slate-400">${escapeHtml(r.ticket_number)}</td>
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(r.title)}</td>
+            <td class="py-3 px-4 text-slate-300">${escapeHtml(r.customer_name)}</td>
+            <td class="py-3 px-4 text-slate-400">${escapeHtml(r.category_name)}</td>
+            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300">${escapeHtml(r.status)}</span></td>
+            <td class="py-3 px-4 text-slate-500">${escapeHtml(r.created_at || 'Recently')}</td>
+          </tr>
+        `).join('');
+      } catch (err) {}
+    }
+
+    // Load Categories
+    async function loadCategories() {
+      try {
+        const res = await adminApi('/categories');
+        const categories = res.categories || [];
+        document.getElementById('stat-categories-count').textContent = categories.length;
+        const tbody = document.getElementById('admin-categories-tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = categories.map(c => `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-4 font-mono font-bold text-slate-400">#${c.id}</td>
+            <td class="py-3 px-4 font-bold text-white">${escapeHtml(c.name)}</td>
+            <td class="py-3 px-4 font-mono text-slate-400">${escapeHtml(c.slug)}</td>
+            <td class="py-3 px-4 text-slate-400 max-w-sm truncate">${escapeHtml(c.description || '—')}</td>
+          </tr>
+        `).join('');
+      } catch (err) {}
+    }
+
+    // Tab Switcher
+    function switchAdminTab(tab) {
+      ['users', 'providers', 'requests', 'categories'].forEach(t => {
+        const btn = document.getElementById('tab-btn-' + t);
+        const panel = document.getElementById('admin-panel-' + t);
+        if (t === tab) {
+          btn.className = 'px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-white border border-slate-700 transition flex items-center gap-2';
+          panel.classList.remove('hidden');
+        } else {
+          btn.className = 'px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition flex items-center gap-2';
+          panel.classList.add('hidden');
+        }
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // Run on load
+    initAdmin();
+  </script>
+</body>
+</html>

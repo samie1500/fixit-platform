@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-[#edf2f7]">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixit - On-Demand Home Repair & Service Platform</title>
+  <script>
+    // Prevent runaway reload loops from external file watchers (e.g. Live Server watching SQLite db files)
+    (function() {
+      try {
+        var last = parseInt(sessionStorage.getItem('fixit_last_load_ts') || '0', 10);
+        var now = Date.now();
+        var count = parseInt(sessionStorage.getItem('fixit_rapid_reload_count') || '0', 10);
+        if (now - last < 3500) {
+          count++;
+          sessionStorage.setItem('fixit_rapid_reload_count', count.toString());
+          if (count >= 2) {
+            console.warn('Fixit: Suppressed rapid reload loop from file watcher.');
+            var dummyReload = function() { console.warn('Fixit: Suppressed rapid reload.'); };
+            window.location.reload = dummyReload;
+          }
+        } else {
+          sessionStorage.setItem('fixit_rapid_reload_count', '0');
+        }
+        sessionStorage.setItem('fixit_last_load_ts', now.toString());
+      } catch(e) {}
+    })();
+  </script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Chart.js for Admin Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-full flex flex-col text-slate-800 antialiased font-sans relative overflow-x-hidden">
+
+  <!-- LIQUID GLASS AMBIENT BACKDROP BLOBS -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+    <div class="liquid-blob liquid-blob-1"></div>
+    <div class="liquid-blob liquid-blob-2"></div>
+    <div class="liquid-blob liquid-blob-3"></div>
+    <div class="liquid-blob liquid-blob-4"></div>
+  </div>
+
+  <!-- MAIN NAVIGATION BAR -->
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-white/60 shadow-sm relative">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-14 sm:h-16">
+        <!-- Logo & Brand -->
+        <div class="flex items-center gap-4 sm:gap-8">
+          <a href="#" onclick="navigate('home')" class="flex items-center gap-2 group shrink-0">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-teal-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-screwdriver-wrench text-base sm:text-lg"></i>
+            </div>
+            <div>
+              <span class="text-xl sm:text-2xl font-black tracking-tight text-slate-900 group-hover:text-brand-700 transition">Fix<span class="text-brand-600">it</span></span>
+            </div>
+          </a>
+
+          <!-- Desktop Navigation Links -->
+          <nav class="hidden md:flex items-center gap-1" id="main-nav-links">
+            <button onclick="navigate('home')" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-brand-700 hover:bg-slate-50 transition" data-view="home">Explore</button>
+            <button onclick="navigate('categories')" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-brand-700 hover:bg-slate-50 transition" data-view="categories">Categories</button>
+            <button onclick="navigate('providers')" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-brand-700 hover:bg-slate-50 transition" data-view="providers">Find Pros</button>
+            <button onclick="navigate('customer-requests')" id="nav-my-requests" class="hidden nav-btn px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-brand-700 hover:bg-slate-50 transition" data-view="customer-requests">My Requests</button>
+            <button onclick="navigate('provider-dashboard')" id="nav-provider-jobs" class="hidden nav-btn px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-brand-700 hover:bg-slate-50 transition" data-view="provider-dashboard">Provider Jobs</button>
+          </nav>
+        </div>
+
+        <!-- Right Side: Action CTA, Notifications, Profile Dropdown -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          <!-- Dual Role Switcher Button (Desktop only for logged-in providers) -->
+          <button id="btn-role-mode-toggle" onclick="toggleUserRoleMode()" style="display: none !important;" class="hidden px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm border border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100 items-center gap-1.5" title="Switch between Customer Mode and Provider Mode">
+            <i class="fa-solid fa-repeat text-brand-600"></i>
+            <span id="role-mode-label">Switch Mode</span>
+          </button>
+
+          <!-- Customer "Report a Problem" CTA button (Desktop only - never squished on mobile!) -->
+          <button onclick="openBookingModal()" id="btn-report-problem" class="hidden md:inline-flex items-center gap-2 whitespace-nowrap bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl shadow-sm hover:shadow transition active:scale-95 shrink-0">
+            <i class="fa-solid fa-plus-circle"></i>
+            <span>Report a Problem</span>
+          </button>
+
+          <!-- Notifications Bell -->
+          <div class="relative" id="notification-wrapper">
+            <button onclick="toggleNotificationDropdown()" class="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl relative transition" aria-label="Notifications">
+              <i class="fa-regular fa-bell text-base sm:text-lg"></i>
+              <span id="unread-count-badge" class="hidden absolute top-1 right-1 w-4 h-4 sm:w-5 sm:h-5 bg-rose-500 text-white text-[9px] sm:text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">0</span>
+            </button>
+            <!-- Dropdown Container -->
+            <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-72 sm:w-80 md:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in">
+              <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                <span class="font-bold text-slate-900 text-sm">Notifications</span>
+                <button onclick="markAllNotificationsRead()" class="text-xs text-brand-600 hover:text-brand-700 font-medium">Mark all read</button>
+              </div>
+              <div id="notification-list" class="max-h-80 overflow-y-auto divide-y divide-slate-100 text-xs">
+                <div class="p-4 text-center text-slate-400">No new notifications</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User Profile / Auth Area (Desktop & Mobile) -->
+          <div id="auth-buttons" class="flex items-center gap-1.5 sm:gap-2">
+            <button onclick="openAuthModal('login')" class="text-xs sm:text-sm font-semibold text-slate-700 hover:text-brand-700 px-2.5 sm:px-3 py-1.5 rounded-lg transition">Sign In</button>
+            <button onclick="openAuthModal('register')" class="text-xs sm:text-sm font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-xl border border-brand-200 transition">Register</button>
+          </div>
+
+          <!-- Logged In User Pill -->
+          <div id="user-profile-pill" class="items-center gap-2 pl-2 border-l border-slate-200" style="display: none;">
+            <img id="user-avatar" src="" alt="avatar" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-slate-200 ring-2 ring-brand-500/20 cursor-pointer" onclick="navigateRoleRequests()" title="My Dashboard">
+            <div class="hidden lg:block text-left leading-tight cursor-pointer" onclick="navigateRoleRequests()">
+              <div id="user-name" class="font-semibold text-xs text-slate-900 truncate max-w-[110px]">User Name</div>
+              <div id="user-role-badge" class="text-[10px] font-medium text-brand-700 capitalize">Role</div>
+            </div>
+            <button onclick="logout()" title="Logout" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition ml-0.5">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+          </div>
+
+          <!-- Mobile Hamburger Menu Button (Visible on < md) -->
+          <button type="button" onclick="toggleMobileDrawer()" class="md:hidden p-2 text-slate-700 hover:text-brand-600 hover:bg-slate-100 rounded-xl transition" aria-label="Open Mobile Menu">
+            <i class="fa-solid fa-bars text-xl" id="hamburger-icon"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SLIDE-OUT MOBILE DRAWER -->
+  <div id="mobile-drawer" class="fixed inset-0 z-50 hidden">
+    <!-- Backdrop overlay -->
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onclick="toggleMobileDrawer()"></div>
+    <!-- Drawer panel -->
+    <div class="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
+      <!-- Drawer Header -->
+      <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-700 to-teal-500 flex items-center justify-center text-white font-bold">
+            <i class="fa-solid fa-screwdriver-wrench text-sm"></i>
+          </div>
+          <span class="font-black text-slate-900 text-lg">Fix<span class="text-brand-600">it</span></span>
+        </div>
+        <button onclick="toggleMobileDrawer()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- User Info Card (Dynamic) -->
+      <div id="drawer-user-section" class="p-4 border-b border-slate-100 bg-white">
+        <!-- Rendered by updateMobileDrawerUI() -->
+      </div>
+
+      <!-- Action Button inside Mobile Drawer -->
+      <div class="p-4 border-b border-slate-100">
+        <button onclick="openBookingModal(); toggleMobileDrawer();" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plus-circle"></i>
+          <span>Report a Problem & Book Pro</span>
+        </button>
+      </div>
+
+      <!-- Navigation Links -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-1 text-sm font-semibold text-slate-700">
+        <button onclick="navigate('home'); toggleMobileDrawer();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-50 hover:text-brand-700 transition text-left">
+          <i class="fa-solid fa-house text-slate-400 w-5"></i>
+          <span>Explore Home</span>
+        </button>
+        <button onclick="navigate('categories'); toggleMobileDrawer();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-50 hover:text-brand-700 transition text-left">
+          <i class="fa-solid fa-shapes text-slate-400 w-5"></i>
+          <span>Service Categories</span>
+        </button>
+        <button onclick="navigate('providers'); toggleMobileDrawer();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-50 hover:text-brand-700 transition text-left">
+          <i class="fa-solid fa-user-gear text-slate-400 w-5"></i>
+          <span>Find Pros (Verified Techs)</span>
+        </button>
+        <button onclick="navigate('customer-requests'); toggleMobileDrawer();" id="drawer-nav-my-requests" class="hidden w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-50 hover:text-brand-700 transition text-left">
+          <i class="fa-solid fa-clipboard-list text-slate-400 w-5"></i>
+          <span>My Service Requests</span>
+        </button>
+        <button onclick="navigate('provider-dashboard'); toggleMobileDrawer();" id="drawer-nav-provider-jobs" class="hidden w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-50 hover:text-brand-700 transition text-left">
+          <i class="fa-solid fa-briefcase text-slate-400 w-5"></i>
+          <span>Provider Job Board</span>
+        </button>
+      </div>
+
+      <!-- Drawer Footer -->
+      <div class="p-4 border-t border-slate-100 bg-slate-50 text-xs text-slate-500 space-y-2">
+        <div class="flex items-center justify-between">
+          <span>Fixit Home Repairs & Maintenance</span>
+          <span class="text-[11px] text-brand-600 font-semibold">Verified Pros</span>
+        </div>
+        <div id="drawer-auth-actions" class="pt-2 flex gap-2">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION BAR (Sticky at bottom on phones < md) -->
+  <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg px-2 py-1 flex items-center justify-around">
+    <button onclick="navigate('home')" class="mobile-nav-btn flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-600 hover:text-brand-600 transition" data-view="home">
+      <i class="fa-solid fa-house text-base"></i>
+      <span class="text-[10px] font-medium mt-0.5">Home</span>
+    </button>
+    <button onclick="navigate('providers')" class="mobile-nav-btn flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-600 hover:text-brand-600 transition" data-view="providers">
+      <i class="fa-solid fa-magnifying-glass text-base"></i>
+      <span class="text-[10px] font-medium mt-0.5">Pros</span>
+    </button>
+    <!-- Center Floating Action Button -->
+    <button onclick="openBookingModal()" class="flex flex-col items-center justify-center -mt-5 bg-gradient-to-tr from-brand-700 to-teal-500 text-white w-12 h-12 rounded-full shadow-lg shadow-brand-500/30 hover:scale-105 active:scale-95 transition" aria-label="Book Service">
+      <i class="fa-solid fa-plus text-lg"></i>
+    </button>
+    <button onclick="navigateRoleRequests()" class="mobile-nav-btn flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-600 hover:text-brand-600 transition" data-view="requests">
+      <i class="fa-solid fa-clipboard-list text-base"></i>
+      <span class="text-[10px] font-medium mt-0.5">Requests</span>
+    </button>
+    <button onclick="toggleMobileDrawer()" class="mobile-nav-btn flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-600 hover:text-brand-600 transition" aria-label="Menu">
+      <i class="fa-solid fa-bars text-base"></i>
+      <span class="text-[10px] font-medium mt-0.5">Menu</span>
+    </button>
+  </nav>
+
+  <!-- TOAST ALERTS CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- MAIN APP CONTENT PANELS -->
+  <main class="flex-1 pb-16 relative z-10">
+
+    <!-- VIEW 1: HOME / LANDING EXPLORER -->
+    <div id="view-home" class="view-panel">
+      <!-- Hero Section -->
+      <section class="relative pt-12 pb-20 border-b border-white/50 overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(#0d9488_1px,transparent_1px)] [background-size:28px_28px] opacity-10"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+              <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-white/90 shadow-sm text-brand-800 text-xs font-bold">
+                <i class="fa-solid fa-shield-check text-brand-600"></i> Verified Professionals & Guaranteed Repairs
+              </div>
+              <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 leading-[1.1]">
+                Quick, Reliable Repairs <br class="hidden sm:inline">
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-teal-500">Done Right At Home.</span>
+              </h1>
+              <p class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto lg:mx-0">
+                Facing a leaking faucet, electrical hazard, broken AC, or faulty appliance? Book certified handymen in seconds and track your service in real time.
+              </p>
+
+              <!-- Quick Search / Booking Action -->
+              <div class="p-2 sm:p-2.5 rounded-2xl border border-white/80 bg-white/70 backdrop-blur-xl shadow-[0_16px_36px_-8px_rgba(15,23,42,0.08)] max-w-xl mx-auto lg:mx-0 flex flex-col sm:flex-row gap-2 glass-tilt">
+                <div class="flex-1 flex items-center px-3.5 gap-2.5 border-b sm:border-b-0 sm:border-r border-slate-300/40 py-2 sm:py-0">
+                  <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                  <input type="text" id="home-search-input" placeholder="What needs fixing today?" class="w-full text-sm outline-none bg-transparent !shadow-none !border-none">
+                </div>
+                <button onclick="handleHomeSearch()" class="bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm px-6 py-3 rounded-xl transition shadow shadow-brand-500/25 flex items-center justify-center gap-2">
+                  <span>Find a Pro</span>
+                  <i class="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+
+              <!-- Trust Stats -->
+              <div class="pt-4 flex items-center justify-center lg:justify-start gap-8 text-xs font-semibold text-slate-500">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-clock text-brand-600 text-base"></i>
+                  <span>Same-Day Booking</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-badge-check text-brand-600 text-base"></i>
+                  <span>100% Background-Checked</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-star text-amber-500 text-base"></i>
+                  <span>4.9 / 5 Rating</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Visual Card -->
+            <div class="lg:col-span-5 relative">
+              <div class="relative mx-auto max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-5 hero-glass-card glass-tilt">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
+                      <i class="fa-solid fa-wrench"></i>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-slate-900 text-sm">Need Rapid Repair?</h4>
+                      <p class="text-xs text-slate-500">Submit request with photos in 1 min</p>
+                    </div>
+                  </div>
+                  <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Fast Response</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-left">
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-brand-300 transition cursor-pointer" onclick="openBookingModalWithCategory(1)">
+                    <i class="fa-solid fa-faucet-drip text-blue-500 text-lg mb-1"></i>
+                    <div class="font-bold text-xs text-slate-800">Plumbing</div>
+                    <div class="text-[10px] text-slate-500">From ₹399 • Leaks & Taps</div>
+                  </div>
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-brand-300 transition cursor-pointer" onclick="openBookingModalWithCategory(2)">
+                    <i class="fa-solid fa-bolt text-amber-500 text-lg mb-1"></i>
+                    <div class="font-bold text-xs text-slate-800">Electrical</div>
+                    <div class="text-[10px] text-slate-500">From ₹449 • Wiring & Light</div>
+                  </div>
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-brand-300 transition cursor-pointer" onclick="openBookingModalWithCategory(3)">
+                    <i class="fa-solid fa-hammer text-orange-500 text-lg mb-1"></i>
+                    <div class="font-bold text-xs text-slate-800">Carpentry</div>
+                    <div class="text-[10px] text-slate-500">From ₹349 • Doors & Locks</div>
+                  </div>
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-brand-300 transition cursor-pointer" onclick="openBookingModalWithCategory(4)">
+                    <i class="fa-solid fa-snowflake text-sky-500 text-lg mb-1"></i>
+                    <div class="font-bold text-xs text-slate-800">AC & Cooling</div>
+                    <div class="text-[10px] text-slate-500">From ₹599 • Servicing & Gas</div>
+                  </div>
+                </div>
+
+                <button onclick="openBookingModal()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2">
+                  <span>Start Repair Request</span>
+                  <i class="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Featured Categories Section -->
+      <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
+          <div>
+            <span class="text-xs font-bold tracking-widest text-brand-600 uppercase">Popular Categories</span>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">What can we help you fix?</h2>
+          </div>
+          <button onclick="navigate('categories')" class="text-sm font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1.5">
+            <span>View All Categories</span>
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </div>
+
+        <div id="home-categories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Dynamic category cards inserted via app.js -->
+        </div>
+      </section>
+
+      <!-- How Fixit Works: 4 Step Process -->
+      <section class="bg-white/60 backdrop-blur-xl border-y border-white/80 py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <span class="text-xs font-bold tracking-widest text-brand-600 uppercase">Simple & Transparent</span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 mb-12">How Fixit Gets It Solved</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div class="space-y-3 relative p-6 rounded-3xl bg-white/70 backdrop-blur-md border border-white/80 shadow-sm scroll-3d glass-tilt hover:shadow-xl transition-all">
+              <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold mx-auto border border-brand-100 shadow-sm">
+                1
+              </div>
+              <h3 class="font-bold text-slate-900 text-base">Report the Issue</h3>
+              <p class="text-xs text-slate-500 leading-relaxed">Choose category, snap a photo of the damage, pick your preferred date & time slot.</p>
+            </div>
+            <div class="space-y-3 relative p-6 rounded-3xl bg-white/70 backdrop-blur-md border border-white/80 shadow-sm scroll-3d glass-tilt hover:shadow-xl transition-all">
+              <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold mx-auto border border-brand-100 shadow-sm">
+                2
+              </div>
+              <h3 class="font-bold text-slate-900 text-base">Pro Acceptance</h3>
+              <p class="text-xs text-slate-500 leading-relaxed">A certified, background-checked technician accepts your job with transparent upfront pricing.</p>
+            </div>
+            <div class="space-y-3 relative p-6 rounded-3xl bg-white/70 backdrop-blur-md border border-white/80 shadow-sm scroll-3d glass-tilt hover:shadow-xl transition-all">
+              <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold mx-auto border border-brand-100 shadow-sm">
+                3
+              </div>
+              <h3 class="font-bold text-slate-900 text-base">Live Tracking</h3>
+              <p class="text-xs text-slate-500 leading-relaxed">Track technician arrival and repair milestones step-by-step from In-Progress to Done.</p>
+            </div>
+            <div class="space-y-3 relative p-6 rounded-3xl bg-white/70 backdrop-blur-md border border-white/80 shadow-sm scroll-3d glass-tilt hover:shadow-xl transition-all">
+              <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold mx-auto border border-brand-100 shadow-sm">
+                4
+              </div>
+              <h3 class="font-bold text-slate-900 text-base">Review & Guarantee</h3>
+              <p class="text-xs text-slate-500 leading-relaxed">Inspect the completed work, rate your technician, and enjoy our service guarantee.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Top Rated Providers Section -->
+      <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div class="flex items-end justify-between mb-10">
+          <div>
+            <span class="text-xs font-bold tracking-widest text-brand-600 uppercase">Top Rated</span>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Verified Service Specialists</h2>
+          </div>
+          <button onclick="navigate('providers')" class="text-sm font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1.5">
+            <span>Browse All Pros</span>
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </div>
+        <div id="home-featured-providers-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Featured providers loaded via JS -->
+        </div>
+      </section>
+
+      <!-- Customer Testimonials Section -->
+      <section class="bg-slate-900 text-white py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center max-w-2xl mx-auto mb-12">
+            <span class="text-xs font-bold tracking-widest text-brand-400 uppercase">Customer Feedback</span>
+            <h2 class="text-2xl sm:text-3xl font-black mt-1">What Our Happy Customers Say</h2>
+          </div>
+          <div id="home-reviews-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Dynamic reviews loaded via JS -->
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- VIEW 2: ALL CATEGORIES -->
+    <div id="view-categories" class="view-panel hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div class="text-center max-w-2xl mx-auto mb-10">
+        <h1 class="text-3xl font-black text-slate-900">Explore Service Categories</h1>
+        <p class="text-slate-600 text-sm mt-2">Pick a category to view certified technicians or book a service on-demand.</p>
+      </div>
+      <div id="all-categories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- VIEW 3: FIND SERVICE PROVIDERS (Search & Filter) -->
+    <div id="view-providers" class="view-panel hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-black text-slate-900">Verified Service Providers</h1>
+          <p class="text-slate-600 text-sm mt-1">Search, compare ratings, and hire specialized technicians directly.</p>
+        </div>
+        <!-- Search and Filter Bar -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="provider-search-box" placeholder="Search by name, skill..." class="text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-white w-48 sm:w-60 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <select id="provider-category-filter" onchange="filterProviders()" class="text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-brand-500 outline-none font-medium">
+            <option value="all">All Categories</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="providers-list-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- VIEW 4: CUSTOMER PORTAL - MY REQUESTS & TRACKING -->
+    <div id="view-customer-requests" class="view-panel hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+        <div>
+          <h1 class="text-3xl font-black text-slate-900">My Service Requests</h1>
+          <p class="text-slate-600 text-sm mt-1">Track live progress, view history, and rate completed repair jobs.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <!-- Status Filter -->
+          <select id="customer-status-filter" onchange="loadCustomerRequests()" class="text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium outline-none">
+            <option value="all">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Accepted">Accepted</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+          <button onclick="openBookingModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i> New Request
+          </button>
+        </div>
+      </div>
+
+      <!-- Requests Cards List with Visual Progress Bar -->
+      <div id="customer-requests-container" class="space-y-6">
+        <!-- Injected via app.js -->
+      </div>
+    </div>
+
+    <!-- VIEW 5: PROVIDER DASHBOARD (For Service Providers) -->
+    <div id="view-provider-dashboard" class="view-panel hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+        <div>
+          <span class="text-xs font-bold tracking-widest text-brand-600 uppercase">Technician Workspace</span>
+          <h1 class="text-3xl font-black text-slate-900 mt-0.5">Provider Jobs & Requests</h1>
+        </div>
+        <!-- Profile / Rate settings button -->
+        <button onclick="openProviderProfileModal()" class="text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-2">
+          <i class="fa-solid fa-user-gear"></i> Edit My Profile & Rates
+        </button>
+      </div>
+
+      <!-- Live GPS & Service Radius Location Bar -->
+      <div id="provider-live-location-bar" class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200/80 rounded-2xl p-4 mb-6 shadow-sm">
+        <div class="flex items-center gap-3">
+          <span class="relative flex h-3.5 w-3.5 flex-shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-black text-emerald-950 uppercase tracking-wider">Live Service Location</span>
+              <span id="provider-live-status-pill" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300">Active</span>
+            </div>
+            <div id="provider-live-gps-details" class="text-xs text-emerald-800 font-semibold mt-0.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-location-dot text-rose-500"></i>
+              <span id="provider-live-location-text">Detecting your device location...</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="autoDetectProviderLiveLocation(true)" class="text-xs font-bold bg-white hover:bg-emerald-100 text-emerald-800 px-3.5 py-1.5 rounded-xl border border-emerald-300 shadow-sm flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-location-crosshairs text-emerald-600"></i>
+            <span>Update Location</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Provider Status Banner if pending -->
+      <div id="provider-pending-warning" class="hidden mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3">
+        <i class="fa-solid fa-triangle-exclamation text-amber-600 text-lg mt-0.5"></i>
+        <div>
+          <div class="font-bold text-sm">Account Verification Pending</div>
+          <div class="text-xs text-amber-700 mt-0.5">Your profile is currently under review by Fixit Admin. Once approved, you can accept incoming client requests.</div>
+        </div>
+      </div>
+
+      <!-- Provider Summary Stats -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="text-slate-400 text-xs font-medium">Pending Requests</div>
+          <div id="provider-stat-pending" class="text-2xl font-black text-amber-600 mt-1">0</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="text-slate-400 text-xs font-medium">Active Jobs</div>
+          <div id="provider-stat-active" class="text-2xl font-black text-teal-600 mt-1">0</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="text-slate-400 text-xs font-medium">Completed Jobs</div>
+          <div id="provider-stat-completed" class="text-2xl font-black text-slate-900 mt-1">0</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div class="text-slate-400 text-xs font-medium">My Rating</div>
+          <div id="provider-stat-rating" class="text-2xl font-black text-amber-500 mt-1 flex items-center gap-1">
+            <span>5.0</span> <i class="fa-solid fa-star text-base"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Provider Jobs Feed -->
+      <div class="space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-3 gap-2">
+          <div class="flex items-center gap-3">
+            <h2 class="text-lg font-bold text-slate-900">Incoming & Active Repair Jobs</h2>
+            <span class="text-xs text-slate-500" id="provider-job-count">Showing all matched jobs</span>
+          </div>
+          <!-- Service Radius Filters -->
+          <div class="flex items-center gap-2">
+            <button id="provider-filter-all" type="button" onclick="setProviderJobFilter('all')" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-sm transition">
+              All Jobs (<span id="count-all-jobs">0</span>)
+            </button>
+            <button id="provider-filter-5km" type="button" onclick="setProviderJobFilter('5km')" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-white text-slate-700 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt text-amber-500"></i>
+              <span>Within 5km (<span id="count-radius-jobs">0</span>)</span>
+            </button>
+          </div>
+        </div>
+        <div id="provider-jobs-container" class="space-y-4">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- MODAL 1: REPORT A PROBLEM / BOOK SERVICE -->
+  <div id="booking-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 my-8">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div>
+          <h3 class="font-black text-slate-900 text-lg">Report a Problem & Book Service</h3>
+          <p class="text-xs text-slate-500">Provide details so our technicians can diagnose and prepare equipment.</p>
+        </div>
+        <button onclick="closeBookingModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="booking-form" onsubmit="handleBookingSubmit(event)" class="p-6 space-y-4 text-xs">
+        <!-- Hidden provider ID if booked directly -->
+        <input type="hidden" id="booking-provider-id" value="">
+
+        <!-- Direct Booking Pro Banner (Displayed when hiring a specific pro, hiding 5km radius) -->
+        <div id="booking-direct-pro-banner" class="hidden p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-teal-900 text-xs flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold">
+              <i class="fa-solid fa-user-check"></i>
+            </div>
+            <div>
+              <div><span class="font-bold">Direct Booking with:</span> <strong id="booking-direct-pro-name" class="text-slate-900">Provider Name</strong></div>
+              <p class="text-[11px] text-teal-700">Direct pro assignment (5km radius broadcast is disabled).</p>
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded-full bg-teal-200 text-teal-800 font-bold text-[10px]">Direct Hire</span>
+        </div>
+
+        <!-- Category Select -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Service Category *</label>
+          <select id="booking-category" required class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+            <!-- Injected by JS -->
+          </select>
+        </div>
+
+        <!-- Issue Title -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Problem Title / Summary *</label>
+          <input type="text" id="booking-title" required placeholder="e.g. Kitchen sink pipe leaking rapidly into cabinet" class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Detailed Description -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Detailed Description *</label>
+          <textarea id="booking-desc" rows="3" required placeholder="Describe what happened, any sounds, odors, or specific brand/model..." class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+        </div>
+
+        <!-- Photo Upload & Preview -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Upload Photo of Damaged Area (Recommended)</label>
+          <div class="border-2 border-dashed border-slate-200 hover:border-brand-400 rounded-2xl p-4 text-center cursor-pointer transition relative bg-slate-50/50" onclick="document.getElementById('booking-photo-input').click()">
+            <input type="file" id="booking-photo-input" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+            <i class="fa-solid fa-cloud-arrow-up text-brand-600 text-2xl mb-1"></i>
+            <div class="font-medium text-slate-700">Click or Drag & Drop photo here</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">PNG, JPG, WEBP up to 5MB</div>
+          </div>
+          <!-- Photo Preview Container -->
+          <div id="photo-preview-container" class="hidden mt-3 relative inline-block">
+            <img id="photo-preview-img" src="" alt="Damage Preview" class="w-24 h-24 object-cover rounded-xl border border-slate-200 shadow-sm">
+            <button type="button" onclick="removePhotoPreview()" class="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-rose-600">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Date & Time Slot -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Preferred Date *</label>
+            <input type="date" id="booking-date" required class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none font-medium">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Time Slot *</label>
+            <select id="booking-time" required class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+              <option value="Morning (09:00 AM - 12:00 PM)">Morning (09:00 AM - 12:00 PM)</option>
+              <option value="Afternoon (12:00 PM - 03:00 PM)">Afternoon (12:00 PM - 03:00 PM)</option>
+              <option value="Late Afternoon (03:00 PM - 06:00 PM)">Late Afternoon (03:00 PM - 06:00 PM)</option>
+              <option value="Emergency / As Soon As Possible">Emergency / As Soon As Possible</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Address & Location Block -->
+        <div class="space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block font-bold text-slate-700">Service Address in India *</label>
+            </div>
+            <input type="text" id="booking-address" required placeholder="Flat, Street, Area, City (e.g. Near Bus Stand, Jalna)" class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+            <input type="hidden" id="booking-lat" value="">
+            <input type="hidden" id="booking-lng" value="">
+            
+            <!-- GPS Container (Shown ONLY for general complaints, HIDDEN when booking a direct pro) -->
+            <div id="booking-gps-container" class="mt-2 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-slate-500">Need immediate local pro alerts?</span>
+                <button type="button" onclick="detectCustomerLocation()" class="text-[11px] font-bold text-brand-700 hover:text-brand-800 flex items-center gap-1.5 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg border border-brand-200 transition">
+                  <i class="fa-solid fa-location-crosshairs text-brand-600"></i> Use My Current Location
+                </button>
+              </div>
+              <!-- GPS Status Badge -->
+              <div id="booking-location-badge" class="hidden text-[11px] font-medium text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center justify-between">
+                <div class="flex items-center gap-1.5">
+                  <i class="fa-solid fa-location-dot text-emerald-600"></i>
+                  <span id="booking-location-text">Location active • Alerts local pros within 5km</span>
+                </div>
+                <span class="text-[10px] font-bold text-emerald-700 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">5km Radius</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full">
+            <label class="block font-bold text-slate-700 mb-1">Urgency</label>
+            <select id="booking-urgency" class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+              <option value="normal">Normal (Standard Booking)</option>
+              <option value="urgent">Urgent (Immediate Service Needed)</option>
+              <option value="low">Flexible (Within this week)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-2 flex justify-end gap-3 border-t border-slate-100">
+          <button type="button" onclick="closeBookingModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="bg-brand-600 hover:bg-brand-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow-md shadow-brand-500/20">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: AUTH (LOGIN & REGISTER) -->
+  <div id="auth-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-2">
+          <span id="auth-modal-title" class="font-black text-slate-900 text-lg">Sign In</span>
+        </div>
+        <button onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div class="grid grid-cols-2 border-b border-slate-100 text-xs font-bold text-center">
+        <button id="auth-tab-login" onclick="setAuthTab('login')" class="py-3 text-brand-600 border-b-2 border-brand-600">Sign In</button>
+        <button id="auth-tab-register" onclick="setAuthTab('register')" class="py-3 text-slate-400 hover:text-slate-600">Create Account</button>
+      </div>
+
+      <div class="p-6">
+        <!-- Login Form -->
+        <form id="form-login" onsubmit="handleLoginSubmit(event)" autocomplete="off" class="space-y-4 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Email Address</label>
+            <input type="email" id="login-email" required autocomplete="off" placeholder="you@domain.com" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block font-bold text-slate-700">Password</label>
+              <button type="button" onclick="openForgotPasswordModal()" class="text-brand-600 hover:text-brand-700 text-[11px] font-semibold underline">Forgot Password?</button>
+            </div>
+            <input type="password" id="login-password" required autocomplete="new-password" placeholder="••••••••" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Sign In to Fixit</span>
+          </button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="form-register" onsubmit="handleRegisterSubmit(event)" autocomplete="off" class="space-y-3 text-xs hidden">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Account Type</label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 p-2 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                <input type="radio" name="reg-role" value="customer" checked onchange="toggleRegisterProviderFields(false)">
+                <span class="font-medium text-slate-800">Customer</span>
+              </label>
+              <label class="flex items-center gap-2 p-2 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                <input type="radio" name="reg-role" value="provider" onchange="toggleRegisterProviderFields(true)">
+                <span class="font-medium text-slate-800">Service Provider</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Full Name *</label>
+            <input type="text" id="reg-name" required placeholder="John Doe" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Email Address *</label>
+            <input type="email" id="reg-email" required placeholder="john@example.com" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Password *</label>
+            <input type="password" id="reg-password" required placeholder="Create strong password" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Phone Number</label>
+              <input type="tel" id="reg-phone" placeholder="+91 98765 43210" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">District / City (India) *</label>
+              <input type="text" id="reg-district" placeholder="e.g. Jalna, Maharashtra" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+            </div>
+          </div>
+
+          <!-- Extra Fields for Provider Registration -->
+          <div id="reg-provider-fields" class="space-y-3 pt-2 border-t border-slate-100 hidden">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Primary Trade / Specialty *</label>
+              <select id="reg-category" onchange="handleRegCategoryChange(this.value)" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+                <!-- Dynamically loaded categories -->
+              </select>
+            </div>
+            <!-- Custom Trade Input (Revealed when "Others" is selected) -->
+            <div id="reg-custom-category-wrapper" class="hidden animate-in fade-in">
+              <label class="block font-bold text-brand-700 mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-pen-to-square text-brand-600"></i> Enter Your Primary Trade / Specialty *
+              </label>
+              <input type="text" id="reg-custom-trade" placeholder="e.g. Laptop Repairing, Carpentry, Painting, etc." class="w-full px-3 py-2 rounded-xl border-2 border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none bg-brand-50/30 font-medium text-slate-900">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Hourly Rate (₹/hr)</label>
+                <input type="number" id="reg-rate" value="499" min="100" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none font-bold">
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Experience (Years)</label>
+                <input type="number" id="reg-exp" value="3" min="0" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Key Skills (comma-separated)</label>
+              <input type="text" id="reg-skills" placeholder="e.g. OS installation, Chip repair, Cleaning" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition shadow mt-2">Register Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FORGOT / RESET PASSWORD WITH MANDATORY EMAIL OTP -->
+  <div id="forgot-password-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 text-xs">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved text-brand-600 text-base"></i>
+          <span class="font-black text-slate-900 text-base">Reset Password via OTP</span>
+        </div>
+        <button onclick="closeForgotPasswordModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Step 1: Request Reset OTP -->
+      <form id="form-reset-step1" onsubmit="handleRequestResetOtp(event)" class="p-6 space-y-4">
+        <p class="text-slate-600 leading-relaxed text-xs">
+          Enter your registered Fixit email address. We will verify your account and send a <strong>6-digit security code</strong> to your inbox.
+        </p>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Registered Email Address *</label>
+          <input type="email" id="reset-req-email" required placeholder="you@domain.com" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none font-medium">
+        </div>
+        <button type="submit" id="btn-send-reset-otp" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition shadow flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Send Verification OTP</span>
+        </button>
+      </form>
+
+      <!-- Step 2: Verify OTP & Set New Password -->
+      <form id="form-reset-step2" onsubmit="handleVerifyResetPassword(event)" class="p-6 space-y-3.5 hidden">
+        <div class="p-3 bg-brand-50/70 rounded-xl border border-brand-200 text-brand-900 space-y-1">
+          <div class="font-bold flex items-center gap-1.5 text-xs">
+            <i class="fa-solid fa-envelope-circle-check text-brand-600"></i>
+            <span>OTP Code Sent</span>
+          </div>
+          <p class="text-[11px] text-slate-600">
+            A 6-digit reset code has been sent to <strong id="reset-display-email" class="text-slate-900 font-mono">user@example.com</strong>.
+          </p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Enter 6-Digit Code (OTP) *</label>
+          <input type="text" id="reset-otp-input" required maxlength="6" pattern="[0-9]{6}" placeholder="123456" class="w-full px-3 py-2.5 rounded-xl border-2 border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none font-mono text-center text-lg font-black tracking-[0.3em] bg-white">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">New Password (min 6 characters) *</label>
+          <input type="password" id="reset-new-password" required minlength="6" placeholder="Create new password" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Confirm New Password *</label>
+          <input type="password" id="reset-confirm-password" required minlength="6" placeholder="Re-type new password" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div class="flex items-center justify-between text-[11px] pt-1">
+          <button type="button" onclick="backToResetStep1()" class="text-slate-500 hover:text-slate-700 font-medium">
+            <i class="fa-solid fa-arrow-left mr-1"></i> Change Email
+          </button>
+          <button type="button" onclick="resendResetOtp()" id="btn-resend-reset-otp" class="text-brand-600 hover:text-brand-700 font-bold">
+            Resend OTP
+          </button>
+        </div>
+
+        <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition shadow flex items-center justify-center gap-2 mt-2">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Verify OTP & Save New Password</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: RATE & REVIEW SERVICE (After Completion) -->
+  <div id="review-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div>
+          <h3 class="font-black text-slate-900 text-base">Rate Your Service</h3>
+          <p class="text-xs text-slate-500">How was your technician's performance?</p>
+        </div>
+        <button onclick="closeReviewModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="review-form" onsubmit="handleReviewSubmit(event)" class="p-6 space-y-4 text-xs">
+        <input type="hidden" id="review-request-id" value="">
+
+        <!-- Star Rating -->
+        <div class="text-center py-2">
+          <label class="block font-bold text-slate-700 mb-2">Overall Rating</label>
+          <div class="flex items-center justify-center gap-2 text-2xl text-slate-300" id="star-rating-picker">
+            <i class="fa-solid fa-star star-btn cursor-pointer transition hover:text-amber-400" data-val="1" onclick="selectStar(1)"></i>
+            <i class="fa-solid fa-star star-btn cursor-pointer transition hover:text-amber-400" data-val="2" onclick="selectStar(2)"></i>
+            <i class="fa-solid fa-star star-btn cursor-pointer transition hover:text-amber-400" data-val="3" onclick="selectStar(3)"></i>
+            <i class="fa-solid fa-star star-btn cursor-pointer transition hover:text-amber-400" data-val="4" onclick="selectStar(4)"></i>
+            <i class="fa-solid fa-star star-btn cursor-pointer transition hover:text-amber-400" data-val="5" onclick="selectStar(5)"></i>
+          </div>
+          <input type="hidden" id="review-rating-val" value="5">
+          <div id="star-rating-label" class="text-xs font-semibold text-amber-600 mt-1">Excellent (5 Stars)</div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Your Written Review</label>
+          <textarea id="review-comment" rows="3" placeholder="Share details about the technician's punctuality, skill, cleanliness, and overall repair quality..." class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeReviewModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2 rounded-xl transition shadow">Post Review</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: PROVIDER PROFILE & RATES SETTINGS -->
+  <div id="provider-profile-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div>
+          <h3 class="font-black text-slate-900 text-base">Service Profile & Rates</h3>
+          <p class="text-xs text-slate-500">Update your expertise, hourly rate, and availability.</p>
+        </div>
+        <button onclick="closeProviderProfileModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="provider-profile-form" onsubmit="handleProviderProfileSubmit(event)" class="p-6 space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Hourly Rate (₹/hr)</label>
+            <input type="number" id="profile-rate" min="100" step="10" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Experience (Years)</label>
+            <input type="number" id="profile-exp" min="0" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">District / State (India)</label>
+          <input type="text" id="profile-district" placeholder="e.g. Jalna, Maharashtra" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none font-medium">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Specialized Skills (Comma-separated)</label>
+          <input type="text" id="profile-skills" placeholder="e.g. Copper pipes, P-trap repairs, Fixture installations" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Professional Bio</label>
+          <textarea id="profile-bio" rows="3" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Phone Number</label>
+            <input type="tel" id="profile-phone" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Availability Status</label>
+            <select id="profile-available" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-brand-500 outline-none font-medium">
+              <option value="1">Available for Jobs</option>
+              <option value="0">Busy / On Leave</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Geo-Location & Alert Radius -->
+        <div class="p-3 bg-brand-50/50 rounded-2xl border border-brand-200/60 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+              <i class="fa-solid fa-compass text-brand-600"></i> Service Notification Radius
+            </span>
+            <button type="button" onclick="detectProviderLocation()" class="text-[10px] font-bold text-brand-700 hover:text-brand-800 bg-white px-2 py-0.5 rounded-lg border border-brand-200 shadow-sm">
+              <i class="fa-solid fa-location-crosshairs"></i> Set Current GPS
+            </button>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <select id="profile-radius" class="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-brand-500 outline-none font-medium text-xs">
+                <option value="5">5 km (Standard Neighborhood Alerts)</option>
+                <option value="10">10 km (City Wide Coverage)</option>
+                <option value="25">25 km (Greater Metro Area)</option>
+              </select>
+            </div>
+            <div>
+              <input type="text" id="profile-coords" readonly placeholder="18.52, 73.85" class="w-full px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[10px] text-slate-500 font-mono">
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500">
+            You will only receive instant push alerts for repair requests posted within this radius.
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeProviderProfileModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="bg-brand-600 hover:bg-brand-700 text-white font-bold px-5 py-2 rounded-xl transition shadow">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 5: ADMIN ADD CATEGORY -->
+  <div id="admin-category-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div>
+          <h3 class="font-black text-slate-900 text-base">Add Service Category</h3>
+          <p class="text-xs text-slate-500">Expand Fixit catalog with a new trade or specialty.</p>
+        </div>
+        <button onclick="closeAddCategoryModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="admin-category-form" onsubmit="handleAddCategorySubmit(event)" class="p-6 space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Category Name *</label>
+          <input type="text" id="cat-name" required placeholder="e.g. Pest Control & Extermination" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">FontAwesome Icon Class</label>
+          <input type="text" id="cat-icon" value="fa-bug" placeholder="e.g. fa-shield, fa-broom" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Base Price (₹)</label>
+          <input type="number" id="cat-price" value="399" min="100" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Short Description</label>
+          <textarea id="cat-desc" rows="2" placeholder="Brief overview of services provided..." class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+        </div>
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeAddCategoryModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded-xl transition shadow">Create Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 6: REPAIR COMPLETION NOTES / COST DIALOG (For Provider) -->
+  <div id="completion-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div>
+          <h3 class="font-black text-slate-900 text-base">Complete Repair Service</h3>
+          <p class="text-xs text-slate-500">Provide work summary notes and final service charge.</p>
+        </div>
+        <button onclick="closeCompletionModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="completion-form" onsubmit="handleCompletionSubmit(event)" class="p-6 space-y-3 text-xs">
+        <input type="hidden" id="completion-request-id" value="">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Work Done / Completion Notes *</label>
+          <textarea id="completion-notes" rows="3" required placeholder="Detail the parts replaced, adjustments made, and test runs..." class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Final Total Bill (₹) *</label>
+          <input type="number" id="completion-cost" required min="100" step="10" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none font-bold text-slate-900">
+        </div>
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeCompletionModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl transition shadow">Mark Job as Completed</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 7: INDEPENDENT CHAT & OFFLINE PAYMENT NEGOTIATION -->
+  <div id="chat-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full h-[620px] max-h-[92vh] shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+      <!-- Chat Header -->
+      <div class="px-5 py-3.5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="relative">
+            <img id="chat-counterpart-avatar" src="" class="w-10 h-10 rounded-full object-cover border border-slate-200 ring-2 ring-brand-500/20">
+            <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white absolute bottom-0 right-0"></span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="chat-counterpart-name" class="font-bold text-slate-900 text-sm">Provider Name</h3>
+              <span id="chat-job-ticket" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">FIX-1001</span>
+            </div>
+            <p id="chat-job-title" class="text-xs text-slate-500 truncate max-w-xs">Job Title</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Negotiation Status Badge -->
+          <div id="chat-payment-badge" class="hidden sm:flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200">
+            <i class="fa-solid fa-handshake"></i>
+            <span id="chat-payment-status">Offline Payment: Agreed</span>
+          </div>
+
+          <button onclick="closeChatModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Offline Negotiation & Actions Bar -->
+      <div class="bg-gradient-to-r from-brand-50 to-teal-50/40 px-4 py-2 border-b border-brand-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-2 font-medium text-slate-700">
+          <span class="text-brand-700 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-money-bill-wave"></i> Offline Deal:
+          </span>
+          <span class="text-[11px] text-slate-500">Negotiate cash price & pay in person upon service completion</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="relative flex items-center">
+            <span class="absolute left-2.5 text-slate-400 font-bold text-xs">₹</span>
+            <input type="number" id="chat-offer-price" placeholder="Rate" class="w-24 pl-6 pr-2 py-1 text-xs font-bold rounded-lg border border-slate-200 focus:ring-1 focus:ring-brand-500 outline-none bg-white">
+          </div>
+          <button onclick="sendPriceOffer()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg transition shadow-sm flex items-center gap-1">
+            <i class="fa-solid fa-tag"></i> Propose
+          </button>
+          <button onclick="confirmOfflinePaymentDeal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg transition shadow-sm flex items-center gap-1">
+            <i class="fa-solid fa-circle-check"></i> Agree Offline Deal
+          </button>
+        </div>
+      </div>
+
+      <!-- Message Bubbles Stream -->
+      <div id="chat-messages-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/40 text-xs">
+        <!-- Messages loaded dynamically -->
+      </div>
+
+      <!-- Quick Phrase Chips -->
+      <div class="px-4 py-1.5 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto text-[11px]">
+        <span class="text-slate-400 font-medium shrink-0 text-[10px]">Quick:</span>
+        <button onclick="sendQuickReply('Can we agree on cash payment upon completion?')" class="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">💵 Cash on arrival?</button>
+        <button onclick="sendQuickReply('I am on my way with tools and spare parts.')" class="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">🚗 On my way</button>
+        <button onclick="sendQuickReply('What is your best negotiated price for this job?')" class="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">🏷️ Best price?</button>
+        <button onclick="sendQuickReply('Deal agreed! See you at the scheduled time.')" class="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition">🤝 Deal agreed</button>
+      </div>
+
+      <!-- Current Active Sender Indicator -->
+      <div id="chat-sender-indicator" class="px-4 py-1.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
+        <span>Replying as: <strong id="chat-sender-name" class="text-brand-700 font-bold">You</strong> <span id="chat-sender-role" class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-800 font-bold text-[9px] uppercase">User</span></span>
+        <span class="text-[10px] text-slate-400"><i class="fa-solid fa-circle text-emerald-500 text-[8px] animate-pulse mr-1"></i> Live Chat Active</span>
+      </div>
+
+      <!-- Message Input Form -->
+      <form id="chat-input-form" onsubmit="handleSendChatMessage(event)" class="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
+        <input type="text" id="chat-message-input" autocomplete="off" placeholder="Type message, negotiate price, or confirm details..." class="flex-1 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none">
+        <button type="submit" class="bg-brand-600 hover:bg-brand-700 text-white font-bold px-4 py-2.5 rounded-xl transition shadow flex items-center gap-1.5">
+          <span>Send</span>
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: REGISTRATION EMAIL OTP VERIFICATION -->
+  <div id="otp-verify-modal" class="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 text-xs my-6">
+      <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold">
+            <i class="fa-solid fa-envelope-circle-check text-sm"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-slate-900 text-sm">Verify Your Email Address</h3>
+            <p class="text-[10px] text-slate-500">Enter the 6-digit verification code</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeOtpVerifyModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <form id="form-otp-verify" onsubmit="handleOtpVerifySubmit(event)" class="p-6 space-y-4">
+        <div class="p-3 bg-teal-50/70 rounded-2xl border border-teal-200 text-teal-900 space-y-1">
+          <div class="font-bold flex items-center gap-1.5 text-xs">
+            <i class="fa-solid fa-circle-check text-teal-600"></i>
+            <span>Activation Code Dispatched</span>
+          </div>
+          <p class="text-[11px] text-slate-600 leading-relaxed">
+            We sent a 6-digit activation code to <strong id="otp-target-email" class="text-slate-900 font-mono">user@example.com</strong>. Dummy/temporary emails are automatically filtered out.
+          </p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1 text-center">Enter 6-Digit OTP *</label>
+          <input type="text" id="reg-otp-input" required maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" placeholder="••••••" class="w-full px-3 py-3 rounded-2xl border-2 border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500 outline-none font-mono text-center text-2xl font-black tracking-[0.35em] bg-white">
+        </div>
+
+        <div class="flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Didn't receive code?</span>
+          <button type="button" onclick="resendRegisterOtp()" id="btn-resend-register-otp" class="text-brand-600 hover:text-brand-700 font-bold">
+            Resend Code
+          </button>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeOtpVerifyModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" id="btn-submit-verify-otp" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-circle-check"></i>
+            <span>Verify & Activate Account</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-slate-200 py-8 mb-16 md:mb-0 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-lg bg-brand-600 text-white flex items-center justify-center text-xs font-bold">
+          <i class="fa-solid fa-screwdriver-wrench"></i>
+        </div>
+        <span class="font-bold text-slate-800">Fixit Platform</span>
+        <span>© 2026 Fixit. All rights reserved.</span>
+      </div>
+      <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-medium">
+        <a href="#" onclick="navigate('home')" class="hover:text-brand-600 transition">Explore</a>
+        <a href="#" onclick="navigate('categories')" class="hover:text-brand-600 transition">Categories</a>
+        <a href="#" onclick="navigate('providers')" class="hover:text-brand-600 transition">Find Pros</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Main JavaScript Bundle -->
+  <script src="app.js?v=2.4"></script>
+</body>
+</html>
