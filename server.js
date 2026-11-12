@@ -121,6 +121,39 @@ async function validateEmailDomain(email) {
   return { valid: true };
 }
 
+// Brevo HTTPS API Dispatcher (Port 443 - works on Render Free Tier to deliver real emails to ANY address)
+async function sendBrevoEmail({ to, subject, html }) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return { sent: false };
+
+  try {
+    const senderEmail = process.env.BREVO_SENDER || process.env.SMTP_USER || 'devkate.avdhut2003@gmail.com';
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey.trim(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { name: 'Fixit Platform', email: senderEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data && (data.messageId || data.id)) {
+      console.log(`[EMAIL DISPATCH] Delivered via Brevo HTTPS API (Message ID: ${data.messageId || data.id})`);
+      return { sent: true };
+    }
+    console.warn(`[EMAIL WARNING] Brevo API error:`, data);
+    return { sent: false, error: data?.message || 'Brevo API rejected' };
+  } catch (e) {
+    console.warn(`[EMAIL WARNING] Brevo fetch failed:`, e.message);
+    return { sent: false, error: e.message };
+  }
+}
+
 // HTTPS Email Dispatcher (Port 443 - works on Render Free Tier & cloud hosts where SMTP is blocked)
 async function sendHttpsApiEmail({ to, subject, html }) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -272,13 +305,19 @@ async function sendOtpEmail(toEmail, otp, type = 'register') {
   console.log(`Expires in: 10 minutes`);
   console.log(`==================================================\n`);
 
-  // 1. Try HTTPS API first (Resend / Port 443 - works on Render Free Tier)
+  // 1. Try Brevo HTTPS API first (Port 443 - works on Render Free Tier to deliver to ANY email address)
+  const brevoResult = await sendBrevoEmail({ to: toEmail, subject, html });
+  if (brevoResult.sent) {
+    return { ...brevoResult, otp };
+  }
+
+  // 2. Try Resend HTTPS API (Port 443)
   const httpsResult = await sendHttpsApiEmail({ to: toEmail, subject, html });
   if (httpsResult.sent) {
     return { ...httpsResult, otp };
   }
 
-  // 2. Try SMTP TLS (Port 465)
+  // 3. Try SMTP TLS (Port 465 - works on localhost:3000)
   const smtpResult = await sendSmtpEmail({ to: toEmail, subject, html });
   return { ...smtpResult, otp };
 }
@@ -504,18 +543,12 @@ const server = http.createServer(async (req, res) => {
         // 5. Send OTP via email
         const emailResult = await sendOtpEmail(cleanEmail, otp, 'register');
         if (!emailResult.sent) {
-          console.warn(`[OTP FALLBACK] Email delivery unavailable on host (${emailResult.error}). Providing code directly so registration is not blocked.`);
-          return sendJson(res, 200, {
-            success: true,
-            emailDeliveryFailed: true,
-            otp: otp,
-            message: `Verification code generated: ${otp}. (Free cloud hosts block outbound SMTP ports, so your code is provided directly here).`,
-            email: cleanEmail
-          });
+          console.warn(`[OTP WARNING] Email delivery unavailable on host (${emailResult.error}). Registration kept active in memory.`);
         }
 
         return sendJson(res, 200, {
           success: true,
+          emailDeliveryFailed: !emailResult.sent,
           message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please check your email inbox and spam folder.`,
           email: cleanEmail
         });
@@ -617,18 +650,12 @@ const server = http.createServer(async (req, res) => {
 
         const emailResult = await sendOtpEmail(cleanEmail, freshOtp, 'register');
         if (!emailResult.sent) {
-          console.warn(`[OTP FALLBACK] Resend email delivery unavailable (${emailResult.error}). Providing fresh OTP code directly.`);
-          return sendJson(res, 200, {
-            success: true,
-            emailDeliveryFailed: true,
-            otp: freshOtp,
-            message: `Fresh verification code: ${freshOtp}`,
-            email: cleanEmail
-          });
+          console.warn(`[OTP WARNING] Resend email delivery unavailable (${emailResult.error}).`);
         }
 
         return sendJson(res, 200, {
           success: true,
+          emailDeliveryFailed: !emailResult.sent,
           message: `A fresh 6-digit verification code has been dispatched to ${cleanEmail}. Please check your inbox and spam folder.`,
           email: cleanEmail
         });
@@ -657,18 +684,12 @@ const server = http.createServer(async (req, res) => {
 
         const emailResult = await sendOtpEmail(cleanEmail, otp, 'reset_password');
         if (!emailResult.sent) {
-          console.warn(`[OTP FALLBACK] Password reset email delivery unavailable (${emailResult.error}). Providing code directly.`);
-          return sendJson(res, 200, {
-            success: true,
-            emailDeliveryFailed: true,
-            otp: otp,
-            message: `Password reset code: ${otp}.`,
-            email: cleanEmail
-          });
+          console.warn(`[OTP WARNING] Password reset email delivery unavailable (${emailResult.error}).`);
         }
 
         return sendJson(res, 200, {
           success: true,
+          emailDeliveryFailed: !emailResult.sent,
           message: `A 6-digit password reset code has been dispatched to ${cleanEmail}. Please check your inbox and spam folder.`,
           email: cleanEmail
         });
