@@ -1,0 +1,26 @@
+# Environment credentials (DO NOT COMMIT PASSWORDS TO GITHUB)
+.env
+.env.local
+
+# SQLite database & journals
+fixit.db
+fixit.db-wal
+fixit.db-shm
+*.sqlite
+*.sqlite3
+
+# Node dependencies (if npm is used)
+node_modules/
+package-lock.json
+
+# User uploads & logs
+public/uploads/*
+!public/uploads/.gitkeep
+*.log
+npm-debug.log*
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

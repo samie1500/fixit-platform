@@ -1,0 +1,22 @@
+{
+  "name": "fixit-platform",
+  "version": "1.0.0",
+  "description": "On-demand home repair and service booking platform built with native Node.js and SQLite.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "home-repair",
+    "handyman",
+    "service-booking",
+    "nodejs",
+    "sqlite",
+    "liquid-glass"
+  ],
+  "author": "",
+  "license": "ISC"
+}
