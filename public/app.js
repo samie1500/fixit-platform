@@ -1220,6 +1220,18 @@ function updateAuthUI() {
     }
   }
 
+  // Floating Admin Access Badge (Visible in lower-right corner when not signed in, hidden when customer/provider is signed in)
+  const floatingAdmin = document.getElementById('floating-admin-btn');
+  if (floatingAdmin) {
+    if (!state.currentUser || state.currentUser.role === 'admin') {
+      floatingAdmin.style.removeProperty('display');
+      floatingAdmin.classList.remove('hidden');
+    } else {
+      floatingAdmin.style.setProperty('display', 'none', 'important');
+      floatingAdmin.classList.add('hidden');
+    }
+  }
+
   // Update responsive components
   if (typeof updateMobileDrawerUI === 'function') updateMobileDrawerUI();
   if (typeof updateMobileBottomNavUI === 'function') updateMobileBottomNavUI();
