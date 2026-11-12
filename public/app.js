@@ -1387,13 +1387,9 @@ async function resendResetOtp() {
       body: JSON.stringify({ email })
     });
 
-    if (res.otp) {
-      const otpInput = document.getElementById('reset-otp-input');
-      if (otpInput) otpInput.value = res.otp;
-      showToast(`Fresh reset code: ${res.otp}`, 'success');
-    } else {
-      showToast(res.message || 'A fresh reset code has been sent!', 'success');
-    }
+    const otpInput = document.getElementById('reset-otp-input');
+    if (otpInput) otpInput.value = '';
+    showToast(res.message || 'A fresh 6-digit reset code has been sent to your email!', 'success');
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
@@ -1594,7 +1590,7 @@ function navigateRoleRequests() {
 // ---------------- REGISTRATION EMAIL OTP VERIFICATION ----------------
 state.pendingRegisterEmail = null;
 
-function openOtpVerifyModal(email, autoOtp = null) {
+function openOtpVerifyModal(email) {
   state.pendingRegisterEmail = email;
   const modal = document.getElementById('otp-verify-modal');
   if (!modal) return;
@@ -1605,7 +1601,7 @@ function openOtpVerifyModal(email, autoOtp = null) {
 
   const input = document.getElementById('reg-otp-input');
   if (input) {
-    input.value = autoOtp || '';
+    input.value = ''; // Always keep input empty - user enters the 6-digit code received via email
     setTimeout(() => input.focus(), 100);
   }
 }
@@ -3503,12 +3499,8 @@ async function handleRegisterSubmit(e) {
     });
 
     closeAuthModal();
-    openOtpVerifyModal(data.email || email, data.otp || null);
-    if (data.otp) {
-      showToast(`Verification code: ${data.otp}. Click 'Verify & Complete' to finish!`, 'success');
-    } else {
-      showToast(data.message || 'Verification OTP sent to your email!', 'info');
-    }
+    openOtpVerifyModal(data.email || email);
+    showToast(data.message || 'A 6-digit verification code has been dispatched. Please check your email inbox and spam folder.', 'success');
   } catch (err) {
     showToast('Registration failed: ' + err.message, 'error');
   } finally {
