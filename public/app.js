@@ -1339,11 +1339,15 @@ async function handleRequestResetOtp(e) {
 
     const otpInput = document.getElementById('reset-otp-input');
     if (otpInput) {
-      otpInput.value = '';
+      otpInput.value = res.otp || '';
       setTimeout(() => otpInput.focus(), 100);
     }
 
-    showToast(res.message || 'OTP verification code sent to your email!', 'info');
+    if (res.otp) {
+      showToast(`Reset code generated: ${res.otp}. Enter your new password to finish!`, 'success');
+    } else {
+      showToast(res.message || 'OTP verification code sent to your email!', 'info');
+    }
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
@@ -1371,7 +1375,13 @@ async function resendResetOtp() {
       body: JSON.stringify({ email })
     });
 
-    showToast(res.message || 'A fresh reset code has been sent!', 'success');
+    if (res.otp) {
+      const otpInput = document.getElementById('reset-otp-input');
+      if (otpInput) otpInput.value = res.otp;
+      showToast(`Fresh reset code: ${res.otp}`, 'success');
+    } else {
+      showToast(res.message || 'A fresh reset code has been sent!', 'success');
+    }
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
@@ -1572,7 +1582,7 @@ function navigateRoleRequests() {
 // ---------------- REGISTRATION EMAIL OTP VERIFICATION ----------------
 state.pendingRegisterEmail = null;
 
-function openOtpVerifyModal(email) {
+function openOtpVerifyModal(email, autoOtp = null) {
   state.pendingRegisterEmail = email;
   const modal = document.getElementById('otp-verify-modal');
   if (!modal) return;
@@ -1583,7 +1593,7 @@ function openOtpVerifyModal(email) {
 
   const input = document.getElementById('reg-otp-input');
   if (input) {
-    input.value = '';
+    input.value = autoOtp || '';
     setTimeout(() => input.focus(), 100);
   }
 }
@@ -1660,7 +1670,13 @@ async function resendRegisterOtp() {
       body: JSON.stringify({ email })
     });
 
-    showToast(res.message || 'A fresh verification code has been dispatched to your email!', 'success');
+    if (res.otp) {
+      const input = document.getElementById('reg-otp-input');
+      if (input) input.value = res.otp;
+      showToast(`Fresh verification code: ${res.otp}`, 'success');
+    } else {
+      showToast(res.message || 'A fresh verification code has been dispatched to your email!', 'success');
+    }
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
@@ -3475,8 +3491,12 @@ async function handleRegisterSubmit(e) {
     });
 
     closeAuthModal();
-    openOtpVerifyModal(data.email || email);
-    showToast(data.message || 'Verification OTP sent to your email!', 'info');
+    openOtpVerifyModal(data.email || email, data.otp || null);
+    if (data.otp) {
+      showToast(`Verification code: ${data.otp}. Click 'Verify & Complete' to finish!`, 'success');
+    } else {
+      showToast(data.message || 'Verification OTP sent to your email!', 'info');
+    }
   } catch (err) {
     showToast('Registration failed: ' + err.message, 'error');
   } finally {
