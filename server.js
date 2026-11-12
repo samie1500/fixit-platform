@@ -436,9 +436,9 @@ const server = http.createServer(async (req, res) => {
             password,
             role: ['customer', 'provider'].includes(role) ? role : 'customer',
             phone: phone || '',
-            address: address || district || '',
-            district: (district || address || '').trim(),
-            state: state || ((district || '').includes(',') ? district.split(',').pop().trim() : ''),
+            address: address || district || 'Pune, Maharashtra',
+            district: (district || address || 'Pune, Maharashtra').trim(),
+            state: state || ((district || '').includes(',') ? district.split(',').pop().trim() : 'Maharashtra'),
             category_id: category_id ? Number(category_id) : 8,
             custom_trade: custom_trade || '',
             skills: skills || '',
@@ -888,12 +888,11 @@ const server = http.createServer(async (req, res) => {
             query += ` AND r.user_id = ?`;
             params.push(user.id);
           } else if (user.role === 'provider') {
-            // Provider sees jobs assigned to them, OR pending jobs in their registered category / general trades
-            // Exclude the provider's own requests so they never see their own request on the job board!
-            const provider = db.prepare('SELECT id, category_id, district FROM providers WHERE user_id = ?').get(user.id);
+            // Provider sees jobs assigned to them, OR pending jobs in their registered category!
+            const provider = db.prepare('SELECT id, category_id FROM providers WHERE user_id = ?').get(user.id);
             if (provider) {
-              query += ` AND r.user_id != ? AND (r.provider_id = ? OR ((r.category_id = ? OR r.category_id = 8 OR ? = 8) AND r.status = 'Pending'))`;
-              params.push(user.id, provider.id, provider.category_id, provider.category_id);
+              query += ` AND (r.provider_id = ? OR (r.category_id = ? AND r.status = 'Pending'))`;
+              params.push(provider.id, provider.category_id);
             } else {
               query += ` AND 1=0`;
             }
@@ -915,27 +914,17 @@ const server = http.createServer(async (req, res) => {
 
         // If provider, calculate distance to each job and flag if within their radius
         if (user.role === 'provider') {
-          const prov = db.prepare('SELECT latitude, longitude, service_radius_km, district FROM providers WHERE user_id = ?').get(user.id);
-          const pLat = prov ? prov.latitude : null;
-          const pLng = prov ? prov.longitude : null;
+          const prov = db.prepare('SELECT latitude, longitude, service_radius_km FROM providers WHERE user_id = ?').get(user.id);
+          const pLat = prov ? (prov.latitude || 18.5204) : 18.5204;
+          const pLng = prov ? (prov.longitude || 73.8567) : 73.8567;
           const pRadius = prov ? (prov.service_radius_km || 5.0) : 5.0;
 
           const withDist = requests.map(reqItem => {
-            let dist = (pLat && pLng && reqItem.latitude && reqItem.longitude)
-              ? calculateDistanceKm(pLat, pLng, reqItem.latitude, reqItem.longitude)
-              : null;
-            let within = true;
-            if (dist !== null) {
-              within = dist <= pRadius;
-            } else if (prov && prov.district && reqItem.address) {
-              const pCity = prov.district.split(',')[0].trim().toLowerCase();
-              const reqAddr = reqItem.address.toLowerCase();
-              within = pCity ? reqAddr.includes(pCity) : true;
-            }
+            const dist = (reqItem.latitude && reqItem.longitude) ? calculateDistanceKm(pLat, pLng, reqItem.latitude, reqItem.longitude) : null;
             return {
               ...reqItem,
               distance_km: dist,
-              within_radius: within
+              within_radius: dist !== null ? dist <= pRadius : true
             };
           });
           return sendJson(res, 200, { requests: withDist });
@@ -965,11 +954,6 @@ const server = http.createServer(async (req, res) => {
         const assignedProviderId = provider_id ? Number(provider_id) : null;
         const initialStatus = 'Pending';
 
-        // Fallback to user's stored provider coordinates if not passed explicitly from client
-        const userProv = db.prepare('SELECT latitude, longitude FROM providers WHERE user_id = ?').get(user.id);
-        const reqLat = latitude ? Number(latitude) : (userProv && userProv.latitude ? Number(userProv.latitude) : null);
-        const reqLng = longitude ? Number(longitude) : (userProv && userProv.longitude ? Number(userProv.longitude) : null);
-
         const reqInsert = db.prepare(`
           INSERT INTO requests (
             ticket_number, user_id, provider_id, category_id,
@@ -987,8 +971,8 @@ const server = http.createServer(async (req, res) => {
           preferred_date,
           preferred_time || 'Morning (9 AM - 12 PM)',
           address || user.address || 'Address provided upon confirmation',
-          reqLat,
-          reqLng,
+          latitude ? Number(latitude) : null,
+          longitude ? Number(longitude) : null,
           urgency || 'normal',
           initialStatus,
           estCost
@@ -1005,37 +989,27 @@ const server = http.createServer(async (req, res) => {
         // Notify chosen provider or category providers within 5km radius
         if (assignedProviderId) {
           const prov = db.prepare('SELECT user_id FROM providers WHERE id = ?').get(assignedProviderId);
-          if (prov && prov.user_id !== user.id) {
+          if (prov) {
             db.prepare(`
               INSERT INTO notifications (user_id, title, message, type)
               VALUES (?, 'New Direct Booking Request', ?, 'info')
             `).run(prov.user_id, `You received a new repair request "${title}" from ${user.name}.`);
           }
         } else {
-          // Broadcast to providers in this category (or general multi-trade) whose service radius covers this request
-          // EXCLUDE the requesting user themselves so they never get a notification for their own request!
+          // Broadcast to providers in this category whose service radius covers this request
           const categoryProviders = db.prepare(`
-            SELECT p.id, p.user_id, p.latitude, p.longitude, p.service_radius_km, p.district
+            SELECT p.id, p.user_id, p.latitude, p.longitude, p.service_radius_km
             FROM providers p
-            WHERE (p.category_id = ? OR p.category_id = 8 OR ? = 8)
-              AND p.user_id != ?
-              AND p.verification_status = 'approved'
-              AND p.is_available = 1
-          `).all(Number(category_id), Number(category_id), user.id);
+            WHERE p.category_id = ? AND p.verification_status = 'approved' AND p.is_available = 1
+          `).all(Number(category_id));
 
           for (const p of categoryProviders) {
             let inRadius = true;
             let dist = null;
-            if (reqLat && reqLng && p.latitude && p.longitude) {
-              dist = calculateDistanceKm(reqLat, reqLng, p.latitude, p.longitude);
+            if (latitude && longitude && p.latitude && p.longitude) {
+              dist = calculateDistanceKm(latitude, longitude, p.latitude, p.longitude);
               const provRadius = p.service_radius_km || 5.0;
               if (dist !== null && dist > provRadius) {
-                inRadius = false;
-              }
-            } else if (address && p.district) {
-              const reqCity = (address || '').split(',')[0].trim().toLowerCase();
-              const pCity = p.district.split(',')[0].trim().toLowerCase();
-              if (reqCity && pCity && !reqCity.includes(pCity) && !pCity.includes(reqCity) && !address.toLowerCase().includes(pCity)) {
                 inRadius = false;
               }
             }
@@ -1566,11 +1540,9 @@ const server = http.createServer(async (req, res) => {
   serveStatic(req, res, pathname);
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`===============================================`);
-  console.log(`Fixit Web Platform running:`);
-  console.log(`  Local:   http://localhost:${PORT}`);
-  console.log(`  Network: http://192.168.1.4:${PORT}`);
+  console.log(`Fixit Web Platform running at http://localhost:${PORT}`);
   console.log(`Press Ctrl+C to terminate`);
   console.log(`===============================================`);
 });
